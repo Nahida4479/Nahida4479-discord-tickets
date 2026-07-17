@@ -70,9 +70,12 @@ async function initDb() {
             ping_roles TEXT NOT NULL DEFAULT '[]',
             access_roles TEXT NOT NULL DEFAULT '[]',
             access_users TEXT NOT NULL DEFAULT '[]',
+            ask_reason INTEGER NOT NULL DEFAULT 1,
             FOREIGN KEY (panel_id) REFERENCES panels(id)
         )
     `);
+
+    await dbClient.execute(`ALTER TABLE panel_buttons ADD COLUMN ask_reason INTEGER NOT NULL DEFAULT 1`).catch(() => {});
 
     await dbClient.execute(`
         CREATE TABLE IF NOT EXISTS tickets (
@@ -109,11 +112,11 @@ async function setPanelMessageId(panelId, messageId) {
     });
 }
 
-async function addPanelButton({ panelId, position, label, emoji, style, content, categoryId, pingRoles, accessRoles, accessUsers }) {
+async function addPanelButton({ panelId, position, label, emoji, style, content, categoryId, pingRoles, accessRoles, accessUsers, askReason }) {
     const result = await dbClient.execute({
-        sql: `INSERT INTO panel_buttons (panel_id, position, label, emoji, style, message_content, category_id, ping_roles, access_roles, access_users)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [panelId, position, label, emoji, style, content, categoryId, JSON.stringify(pingRoles), JSON.stringify(accessRoles), JSON.stringify(accessUsers)],
+        sql: `INSERT INTO panel_buttons (panel_id, position, label, emoji, style, message_content, category_id, ping_roles, access_roles, access_users, ask_reason)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [panelId, position, label, emoji, style, content, categoryId, JSON.stringify(pingRoles), JSON.stringify(accessRoles), JSON.stringify(accessUsers), askReason ? 1 : 0],
     });
     return Number(result.lastInsertRowid);
 }
@@ -136,6 +139,7 @@ async function getPanelButton(buttonId) {
         pingRoles: JSON.parse(row.ping_roles),
         accessRoles: JSON.parse(row.access_roles),
         accessUsers: JSON.parse(row.access_users),
+        askReason: Number(row.ask_reason) === 1,
     };
 }
 
@@ -254,8 +258,9 @@ async function executeHelp(interaction) {
                     'Uruchamia to kreator, w ktorym mozna ustawic: tytul embeda, tresc embeda, stopke, ' +
                     'obrazek/gif (jako zalacznik) oraz dowolna liczbe przyciskow (do 25). ' +
                     'Dla kazdego przycisku mozna okreslic: etykiete, emoji, tresc wiadomosci wysylanej po utworzeniu ticketa, ' +
-                    'role oznaczane (ping) przy tworzeniu ticketa, role/osoby majace dostep do ticketow z tego przycisku ' +
-                    'oraz kategorie, w ktorej beda tworzone kanaly ticketow.',
+                    'role oznaczane (ping) przy tworzeniu ticketa, role/osoby majace dostep do ticketow z tego przycisku, ' +
+                    'kategorie, w ktorej beda tworzone kanaly ticketow oraz czy przy otwieraniu ticketa ma pojawic sie ' +
+                    'pytanie o powod (mozna to wylaczyc dla danego przycisku).',
             },
             {
                 name: '2. Wysylka panelu',
@@ -301,7 +306,7 @@ function createWizardSession(userId, data) {
     wizardSessions.set(userId, {
         guildId: data.guildId,
         channelId: data.channelId,
-        embed: { title: null, description: null, footer: null, imageUrl: null },
+        embed: { title: null, description: null, footer: null, imageUrl: null, imageBuffer: null, imageFileName: null },
         buttons: [],
         draft: null,
         imageCollectorActive: false,
@@ -402,6 +407,16 @@ function startImageCollector(interaction, session) {
     collector.on('collect', async (message) => {
         const attachment = message.attachments.first();
         session.embed.imageUrl = attachment.url;
+
+        try {
+            const response = await fetch(attachment.url);
+            const buffer = Buffer.from(await response.arrayBuffer());
+            session.embed.imageBuffer = buffer;
+            session.embed.imageFileName = attachment.name || 'obrazek.png';
+        } catch (error) {
+            console.error('Nie udalo sie pobrac zalacznika embeda:', error);
+        }
+
         session.imageCollectorActive = false;
         await message.delete().catch(() => {});
         await showMainMenu(interaction, session);
@@ -435,6 +450,25 @@ function buildPreviewEmbed(session) {
     if (session.embed.imageUrl) embed.setImage(session.embed.imageUrl);
 
     return embed;
+}
+
+function buildFinalPanelPayload(session) {
+    const embed = new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle(session.embed.title)
+        .setDescription(session.embed.description);
+
+    if (session.embed.footer) embed.setFooter({ text: session.embed.footer });
+
+    const files = [];
+    if (session.embed.imageBuffer) {
+        embed.setImage(`attachment://${session.embed.imageFileName}`);
+        files.push({ attachment: session.embed.imageBuffer, name: session.embed.imageFileName });
+    } else if (session.embed.imageUrl) {
+        embed.setImage(session.embed.imageUrl);
+    }
+
+    return { embed, files };
 }
 
 function renderEmojiLabel(emoji) {
@@ -558,6 +592,7 @@ async function handleButtonModalSubmit(interaction) {
         accessRoles: [],
         accessUsers: [],
         categoryId: null,
+        askReason: true,
     };
 
     await interaction.reply(buildPingStepPayload(session));
@@ -570,17 +605,40 @@ function buildPingStepPayload(session) {
         .setMinValues(0)
         .setMaxValues(25);
 
+    const toggleRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('panel_reason_toggle')
+            .setLabel(
+                session.draft.askReason
+                    ? 'Pytanie o powod: WLACZONE ✅'
+                    : 'Pytanie o powod: WYLACZONE ❌'
+            )
+            .setStyle(session.draft.askReason ? ButtonStyle.Success : ButtonStyle.Secondary)
+    );
+
     const nextRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('panel_ping_next').setLabel('Dalej ➡️').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('panel_draft_cancel').setLabel('Anuluj przycisk').setStyle(ButtonStyle.Danger)
     );
 
     return {
-        content: `Konfiguracja przycisku **${session.draft.label}** - krok 1/3: wybierz role do oznaczenia (ping) po utworzeniu ticketa.`,
+        content:
+            `Konfiguracja przycisku **${session.draft.label}** - krok 1/3: wybierz role do oznaczenia (ping) po utworzeniu ticketa.\n` +
+            'Mozesz tez wlaczyc/wylaczyc pytanie o powod otwarcia ticketa ponizej.',
         embeds: [],
-        components: [new ActionRowBuilder().addComponents(roleSelect), nextRow],
+        components: [new ActionRowBuilder().addComponents(roleSelect), toggleRow, nextRow],
         ephemeral: true,
     };
+}
+
+async function handleReasonToggle(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session || !session.draft) {
+        await interaction.update({ content: 'Sesja wygasla.', components: [] });
+        return;
+    }
+    session.draft.askReason = !session.draft.askReason;
+    await interaction.update(buildPingStepPayload(session));
 }
 
 function buildAccessStepPayload(session) {
@@ -738,6 +796,7 @@ async function handleMenuFinish(interaction) {
             pingRoles: b.pingRoles,
             accessRoles: b.accessRoles,
             accessUsers: b.accessUsers,
+            askReason: b.askReason,
         });
 
         const ticketButton = new ButtonBuilder()
@@ -755,9 +814,9 @@ async function handleMenuFinish(interaction) {
     }
     if (currentRow.components.length > 0) buttonRows.push(currentRow);
 
-    const embed = buildPreviewEmbed(session);
+    const { embed, files } = buildFinalPanelPayload(session);
     const channel = await interaction.client.channels.fetch(session.channelId);
-    const panelMessage = await channel.send({ embeds: [embed], components: buttonRows.slice(0, 5) });
+    const panelMessage = await channel.send({ embeds: [embed], components: buttonRows.slice(0, 5), files });
 
     await setPanelMessageId(panelId, panelMessage.id);
 
@@ -787,6 +846,12 @@ async function handleOpenTicketButton(interaction, buttonId) {
         return;
     }
 
+    if (!panelButton.askReason) {
+        await interaction.deferReply({ ephemeral: true });
+        await createTicketChannel(interaction, panelButton, null);
+        return;
+    }
+
     const modal = new ModalBuilder()
         .setCustomId(`ticket_reason_modal:${buttonId}`)
         .setTitle(`Otwieranie ticketa: ${panelButton.label}`.slice(0, 45));
@@ -813,6 +878,10 @@ async function handleTicketReasonModalSubmit(interaction, buttonId) {
     await interaction.deferReply({ ephemeral: true });
 
     const reason = interaction.fields.getTextInputValue('ticket_reason');
+    await createTicketChannel(interaction, panelButton, reason);
+}
+
+async function createTicketChannel(interaction, panelButton, reason) {
     const guild = interaction.guild;
     const category = await guild.channels.fetch(panelButton.categoryId).catch(() => null);
 
@@ -880,9 +949,12 @@ async function handleTicketReasonModalSubmit(interaction, buttonId) {
         .setColor(0x57f287)
         .setTitle(`Nowy ticket: ${panelButton.label}`)
         .setDescription(panelButton.content ? panelButton.content : 'Dziekujemy za utworzenie ticketa. Ktos z zespolu wkrotce sie odezwie.')
-        .addFields({ name: 'Powod otwarcia', value: reason.slice(0, 1024) })
         .setFooter({ text: `Ticket utworzony przez ${interaction.user.tag}` })
         .setTimestamp();
+
+    if (reason) {
+        infoEmbed.addFields({ name: 'Powod otwarcia', value: reason.slice(0, 1024) });
+    }
 
     await channel.send({ content: mentions, embeds: [infoEmbed] });
 
@@ -1076,6 +1148,9 @@ client.on('interactionCreate', async (interaction) => {
                     break;
                 case 'panel_menu_cancel':
                     await handleMenuCancel(interaction);
+                    break;
+                case 'panel_reason_toggle':
+                    await handleReasonToggle(interaction);
                     break;
                 case 'panel_ping_next':
                     await handlePingNext(interaction);
