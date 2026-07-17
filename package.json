@@ -1,0 +1,16 @@
+{
+  "name": "discord-tickets-bot",
+  "version": "1.0.0",
+  "description": "Bot Discord z systemem ticketow konfigurowanym przez /panel-tickets",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  }
+}
