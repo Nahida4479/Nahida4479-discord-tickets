@@ -1011,7 +1011,7 @@ const slashCommands = [
 
 async function deploySlashCommands() {
     const rest = new REST({ version: '10' }).setToken(token);
-    const { application } = await rest.get(Routes.oauth2CurrentApplication());
+    const application = await rest.get(Routes.oauth2CurrentApplication());
     await rest.put(Routes.applicationCommands(application.id), { body: slashCommands });
     console.log(`Zarejestrowano ${slashCommands.length} komend globalnych dla aplikacji ${application.id}.`);
 }
