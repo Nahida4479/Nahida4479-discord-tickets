@@ -41,17 +41,13 @@ Bot Discord napisany w JavaScript (discord.js v14), obsługujący w pełni konfi
 
    Nigdy nie umieszczaj tych wartości bezpośrednio w kodzie ani nie commituj pliku `.env` — jest on ignorowany przez `.gitignore`.
 
-3. Zarejestruj komendy slash (globalnie, propagacja do wszystkich serwerów może zająć do godziny):
-
-   ```bash
-   npm run deploy
-   ```
-
-4. Uruchom bota:
+3. Uruchom bota:
 
    ```bash
    npm start
    ```
+
+   Komendy slash (`/panel-tickets`, `/help`) są rejestrowane globalnie automatycznie przy każdym starcie bota. Propagacja do wszystkich serwerów może zająć do godziny.
 
 ## Uprawnienia bota na serwerze
 
@@ -59,16 +55,7 @@ Bot potrzebuje na serwerze uprawnień: `Zarządzaj kanałami`, `Zarządzaj rolam
 
 ## Struktura projektu
 
-```
-src/
-  commands/       definicje komend slash oraz logika /help
-  database/       połączenie z Turso i operacje na danych
-  tickets/        logika tworzenia i zamykania ticketów
-  utils/          funkcje pomocnicze (uprawnienia, emoji)
-  wizard/         kreator konfiguracji panelu ticketów (/panel-tickets)
-  deploy-commands.js  rejestracja komend slash w Discordzie
-  index.js        punkt wejścia bota
-```
+Cały bot znajduje się w jednym pliku `tickets.js` — baza danych, komendy, kreator panelu, logika ticketów oraz rejestracja komend slash.
 
 ## Jak korzystać z systemu (skrót)
 
