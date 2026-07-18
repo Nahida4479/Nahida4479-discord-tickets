@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const https = require('https');
 const { createClient } = require('@libsql/client');
 const {
     Client,
@@ -258,6 +259,35 @@ function sanitizeChannelName(name) {
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '')
         .slice(0, 80) || 'ticket';
+}
+
+function downloadBuffer(url, redirectsLeft = 5) {
+    return new Promise((resolve, reject) => {
+        https
+            .get(url, (res) => {
+                if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                    res.resume();
+                    if (redirectsLeft <= 0) {
+                        reject(new Error('Zbyt wiele przekierowań podczas pobierania pliku'));
+                        return;
+                    }
+                    downloadBuffer(res.headers.location, redirectsLeft - 1).then(resolve, reject);
+                    return;
+                }
+
+                if (res.statusCode !== 200) {
+                    res.resume();
+                    reject(new Error(`Nieoczekiwany status HTTP ${res.statusCode} podczas pobierania pliku`));
+                    return;
+                }
+
+                const chunks = [];
+                res.on('data', (chunk) => chunks.push(chunk));
+                res.on('end', () => resolve(Buffer.concat(chunks)));
+                res.on('error', reject);
+            })
+            .on('error', reject);
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -614,12 +644,16 @@ function startImageCollector(interaction, session) {
         session.embed.imageUrl = media.url;
 
         try {
-            const response = await fetch(media.url);
-            const buffer = Buffer.from(await response.arrayBuffer());
-            session.embed.imageBuffer = buffer;
+            session.embed.imageBuffer = await downloadBuffer(media.url);
             session.embed.imageFileName = media.name;
         } catch (error) {
             console.error('Nie udało się pobrać załącznika embeda:', error);
+            await interaction.followUp({
+                content:
+                    'Nie udało się pobrać przesłanego pliku na serwerze bota, więc w panelu może zostać użyty tymczasowy link, ' +
+                    'który po pewnym czasie przestanie działać. Spróbuj wysłać plik ponownie albo dokończ konfigurację i wyślij panel możliwie szybko.',
+                ephemeral: true,
+            }).catch(() => {});
         }
 
         session.imageCollectorActive = false;
