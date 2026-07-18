@@ -27,7 +27,7 @@ const {
 const token = process.env.bot;
 
 if (!token) {
-    console.error('Brak tokenu bota. Ustaw zmienna "bot" w pliku .env');
+    console.error('Brak tokenu bota. Ustaw zmienną "bot" w pliku .env');
     process.exit(1);
 }
 
@@ -247,58 +247,58 @@ function sanitizeChannelName(name) {
 async function executeHelp(interaction) {
     const embed = new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle('System ticketow - jak to dziala')
+        .setTitle('System ticketów - jak to działa')
         .setDescription(
-            'Ponizej znajdziesz pelny opis dzialania systemu ticketow na tym serwerze.'
+            'Poniżej znajdziesz pełny opis działania systemu ticketów na tym serwerze.'
         )
         .addFields(
             {
                 name: '1. Konfiguracja panelu (administracja)',
                 value:
-                    'Osoba z uprawnieniami administratora lub wlasciciel serwera moze uzyc komendy `/panel-tickets`. ' +
-                    'Uruchamia to kreator, w ktorym mozna ustawic: tytul embeda, tresc embeda, stopke, ' +
-                    'obrazek, gif, mp4 lub naklejke (wyslana jako zalacznik lub naklejka na czacie) oraz dowolna liczbe przyciskow (do 25). ' +
-                    'Dla kazdego przycisku mozna okreslic: etykiete, emoji, tresc wiadomosci wysylanej po utworzeniu ticketa, ' +
-                    'role oznaczane (ping) przy tworzeniu ticketa, role/osoby majace dostep do ticketow z tego przycisku, ' +
-                    'kategorie, w ktorej beda tworzone kanaly ticketow oraz czy przy otwieraniu ticketa ma pojawic sie ' +
-                    'pytanie o powod (mozna to wylaczyc dla danego przycisku).',
+                    'Osoba z uprawnieniami administratora lub właściciel serwera może użyć komendy `/panel-tickets`. ' +
+                    'Uruchamia to kreator, w którym można ustawić: tytuł embeda, treść embeda, stopkę, ' +
+                    'obrazek, gif, mp4 lub naklejkę (wysłaną jako załącznik lub naklejkę na czacie) oraz dowolną liczbę przycisków (do 25). ' +
+                    'Dla każdego przycisku można określić: etykietę, emoji, treść wiadomości wysyłanej po utworzeniu ticketa, ' +
+                    'role oznaczane (ping) przy tworzeniu ticketa, role/osoby mające dostęp do ticketów z tego przycisku, ' +
+                    'kategorię, w której będą tworzone kanały ticketów oraz czy przy otwieraniu ticketa ma pojawić się ' +
+                    'pytanie o powód (można to wyłączyć dla danego przycisku).',
             },
             {
-                name: '2. Wysylka panelu',
-                value: 'Po zakonczeniu konfiguracji embed z przyciskami zostaje wyslany na kanal, na ktorym uzyto komendy.',
+                name: '2. Wysyłka panelu',
+                value: 'Po zakończeniu konfiguracji embed z przyciskami zostaje wysłany na kanał, na którym użyto komendy.',
             },
             {
                 name: '3. Tworzenie ticketa',
                 value:
-                    'Klikniecie przycisku otwiera formularz z pytaniem o powod otwarcia ticketa. ' +
-                    'Po jego wypelnieniu bot tworzy nowy kanal w wyznaczonej kategorii, widoczny tylko dla osoby, ' +
-                    'ktora otworzyla ticket oraz dla zdefiniowanych dla danego przycisku rol/osob. ' +
-                    'Na kanale wysylana jest wiadomosc z oznaczeniem odpowiednich rol/osob oraz podanym powodem.',
+                    'Kliknięcie przycisku otwiera formularz z pytaniem o powód otwarcia ticketa (chyba że administrator wyłączył to pytanie dla danego przycisku). ' +
+                    'Po jego wypełnieniu bot tworzy nowy kanał w wyznaczonej kategorii, widoczny tylko dla osoby, ' +
+                    'która otworzyła ticket oraz dla zdefiniowanych dla danego przycisku ról/osób. ' +
+                    'Na kanale wysyłana jest wiadomość z oznaczeniem odpowiednich ról/osób oraz podanym powodem (jeśli został podany).',
             },
             {
                 name: '4. Zamykanie ticketa',
                 value:
-                    'Na gorze kanalu znajduje sie wiadomosc z przyciskiem "Zamknij ticket". ' +
-                    'Jesli kliknie go osoba, ktora otworzyla ticket - kanal zamyka sie od razu. ' +
-                    'Jesli kliknie go administrator/osoba z dostepem - wysylane jest pytanie do autora ticketa, ' +
-                    'czy zgadza sie na zamkniecie (przyciski Tak/Nie). Klikniecie "Tak" zamyka ticket, ' +
-                    '"Nie" usuwa pytanie i pozwala kontynuowac rozmowe. Jesli autor nie odpowie w ciagu 12 godzin, ' +
-                    'ticket zamknie sie automatycznie.',
+                    'Na górze kanału znajduje się wiadomość z przyciskiem "Zamknij ticket". ' +
+                    'Jeśli kliknie go osoba, która otworzyła ticket - kanał zamyka się od razu. ' +
+                    'Jeśli kliknie go administrator/osoba z dostępem - wysyłane jest pytanie do autora ticketa, ' +
+                    'czy zgadza się na zamknięcie (przyciski Tak/Nie). Kliknięcie "Tak" zamyka ticket, ' +
+                    '"Nie" usuwa pytanie i pozwala kontynuować rozmowę. Jeśli autor nie odpowie w ciągu 12 godzin, ' +
+                    'ticket zamknie się automatycznie.',
             },
             {
-                name: '5. Widocznosc ticketow',
+                name: '5. Widoczność ticketów',
                 value:
-                    'Kazdy przycisk ma wlasna liste rol/osob z dostepem - osoby przypisane tylko do jednego przycisku ' +
-                    '(np. "Partnerstwo") nie zobacza ticketow utworzonych przez inny przycisk (np. "Pomoc").',
+                    'Każdy przycisk ma własną listę ról/osób z dostępem - osoby przypisane tylko do jednego przycisku ' +
+                    '(np. "Partnerstwo") nie zobaczą ticketów utworzonych przez inny przycisk (np. "Pomoc").',
             }
         )
-        .setFooter({ text: 'W razie pytan skontaktuj sie z administracja serwera.' });
+        .setFooter({ text: 'W razie pytań skontaktuj się z administracją serwera.' });
 
     await interaction.reply({ embeds: [embed] });
 }
 
 // ---------------------------------------------------------------------------
-// Kreator konfiguracji panelu ticketow (/panel-tickets)
+// Kreator konfiguracji panelu ticketów (/panel-tickets)
 // ---------------------------------------------------------------------------
 
 const wizardSessions = new Map();
@@ -325,7 +325,7 @@ function deleteWizardSession(userId) {
 
 async function startPanelWizard(interaction) {
     if (!isOwnerOrAdmin(interaction)) {
-        await interaction.reply({ content: 'Ta komenda jest dostepna tylko dla wlasciciela serwera lub administratorow.', ephemeral: true });
+        await interaction.reply({ content: 'Ta komenda jest dostępna tylko dla właściciela serwera lub administratorów.', ephemeral: true });
         return;
     }
 
@@ -334,18 +334,18 @@ async function startPanelWizard(interaction) {
         channelId: interaction.channelId,
     });
 
-    const modal = new ModalBuilder().setCustomId('panel_embed_modal').setTitle('Konfiguracja panelu ticketow (1/3)');
+    const modal = new ModalBuilder().setCustomId('panel_embed_modal').setTitle('Konfiguracja panelu ticketów (1/3)');
 
     const titleInput = new TextInputBuilder()
         .setCustomId('embed_title')
-        .setLabel('Tytul embeda')
+        .setLabel('Tytuł embeda')
         .setStyle(TextInputStyle.Short)
         .setMaxLength(256)
         .setRequired(true);
 
     const descriptionInput = new TextInputBuilder()
         .setCustomId('embed_description')
-        .setLabel('Tresc embeda')
+        .setLabel('Treść embeda')
         .setStyle(TextInputStyle.Paragraph)
         .setMaxLength(2000)
         .setRequired(true);
@@ -369,7 +369,7 @@ async function startPanelWizard(interaction) {
 async function handleEmbedModalSubmit(interaction) {
     const session = getWizardSession(interaction.user.id);
     if (!session) {
-        await interaction.reply({ content: 'Sesja konfiguracji wygasla. Uzyj ponownie /panel-tickets.', ephemeral: true });
+        await interaction.reply({ content: 'Sesja konfiguracji wygasła. Użyj ponownie /panel-tickets.', ephemeral: true });
         return;
     }
 
@@ -379,13 +379,13 @@ async function handleEmbedModalSubmit(interaction) {
     session.embed.footer = footer && footer.length > 0 ? footer : null;
 
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('panel_image_skip').setLabel('Pomin obrazek/gif').setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId('panel_image_skip').setLabel('Pomiń obrazek/gif').setStyle(ButtonStyle.Secondary)
     );
 
     await interaction.reply({
         content:
-            'Krok 2/3: wyslij teraz na tym kanale obrazek, gif, mp4 (jako zalacznik) lub naklejke, ' +
-            `ktora ma pojawic sie w embedzie panelu. Masz na to ${IMAGE_WAIT_MS / 60000} minut. Mozesz tez pominac ten krok.`,
+            'Krok 2/3: wyślij teraz na tym kanale obrazek, gif, mp4 (jako załącznik) lub naklejkę, ' +
+            `która ma pojawić się w embedzie panelu. Masz na to ${IMAGE_WAIT_MS / 60000} minut. Możesz też pominąć ten krok.`,
         components: [row],
         ephemeral: true,
     });
@@ -428,7 +428,7 @@ function startImageCollector(interaction, session) {
 
         if (media?.unsupported) {
             await interaction.followUp({
-                content: 'Ta naklejka jest w formacie wektorowym (Lottie) i nie moze byc uzyta jako obrazek embeda. Wyslij plik, gif, mp4 lub inna naklejke (obrazkowa/animowana).',
+                content: 'Ta naklejka jest w formacie wektorowym (Lottie) i nie może być użyta jako obrazek embeda. Wyślij plik, gif, mp4 lub inną naklejkę (obrazkową/animowaną).',
                 ephemeral: true,
             }).catch(() => {});
             return;
@@ -444,7 +444,7 @@ function startImageCollector(interaction, session) {
             session.embed.imageBuffer = buffer;
             session.embed.imageFileName = media.name;
         } catch (error) {
-            console.error('Nie udalo sie pobrac zalacznika embeda:', error);
+            console.error('Nie udało się pobrać załącznika embeda:', error);
         }
 
         session.imageCollectorActive = false;
@@ -463,7 +463,7 @@ function startImageCollector(interaction, session) {
 async function handleImageSkip(interaction) {
     const session = getWizardSession(interaction.user.id);
     if (!session) {
-        await interaction.update({ content: 'Sesja konfiguracji wygasla. Uzyj ponownie /panel-tickets.', components: [] });
+        await interaction.update({ content: 'Sesja konfiguracji wygasła. Użyj ponownie /panel-tickets.', components: [] });
         return;
     }
     session.imageCollectorActive = false;
@@ -508,7 +508,7 @@ function renderEmojiLabel(emoji) {
 
 function buildMenuContent(session) {
     if (session.buttons.length === 0) {
-        return 'Krok 3/3: dodaj przynajmniej jeden przycisk ticketu, aby moc wyslac panel.';
+        return 'Krok 3/3: dodaj przynajmniej jeden przycisk ticketu, aby móc wysłać panel.';
     }
     const list = session.buttons
         .map((b, i) => `**${i + 1}.** ${b.emoji ? renderEmojiLabel(b.emoji) + ' ' : ''}${b.label}`)
@@ -526,7 +526,7 @@ function buildMenuComponents(session) {
             .setDisabled(session.buttons.length >= MAX_BUTTONS),
         new ButtonBuilder()
             .setCustomId('panel_menu_finish')
-            .setLabel('Zakoncz i wyslij panel')
+            .setLabel('Zakończ i wyślij panel')
             .setEmoji('✅')
             .setStyle(ButtonStyle.Success)
             .setDisabled(session.buttons.length === 0),
@@ -567,7 +567,7 @@ async function refreshMainMenu(session) {
 async function handleMenuAdd(interaction) {
     const session = getWizardSession(interaction.user.id);
     if (!session) {
-        await interaction.reply({ content: 'Sesja konfiguracji wygasla. Uzyj ponownie /panel-tickets.', ephemeral: true });
+        await interaction.reply({ content: 'Sesja konfiguracji wygasła. Użyj ponownie /panel-tickets.', ephemeral: true });
         return;
     }
 
@@ -589,7 +589,7 @@ async function handleMenuAdd(interaction) {
 
     const contentInput = new TextInputBuilder()
         .setCustomId('button_content')
-        .setLabel('Tresc wiadomosci na kanale ticketu')
+        .setLabel('Treść wiadomości na kanale ticketu')
         .setStyle(TextInputStyle.Paragraph)
         .setMaxLength(1500)
         .setRequired(false);
@@ -606,7 +606,7 @@ async function handleMenuAdd(interaction) {
 async function handleButtonModalSubmit(interaction) {
     const session = getWizardSession(interaction.user.id);
     if (!session) {
-        await interaction.reply({ content: 'Sesja konfiguracji wygasla. Uzyj ponownie /panel-tickets.', ephemeral: true });
+        await interaction.reply({ content: 'Sesja konfiguracji wygasła. Użyj ponownie /panel-tickets.', ephemeral: true });
         return;
     }
 
@@ -640,8 +640,8 @@ function buildPingStepPayload(session) {
             .setCustomId('panel_reason_toggle')
             .setLabel(
                 session.draft.askReason
-                    ? 'Pytanie o powod: WLACZONE ✅'
-                    : 'Pytanie o powod: WYLACZONE ❌'
+                    ? 'Pytanie o powód: WŁĄCZONE ✅'
+                    : 'Pytanie o powód: WYŁĄCZONE ❌'
             )
             .setStyle(session.draft.askReason ? ButtonStyle.Success : ButtonStyle.Secondary)
     );
@@ -654,7 +654,7 @@ function buildPingStepPayload(session) {
     return {
         content:
             `Konfiguracja przycisku **${session.draft.label}** - krok 1/3: wybierz role do oznaczenia (ping) po utworzeniu ticketa.\n` +
-            'Mozesz tez wlaczyc/wylaczyc pytanie o powod otwarcia ticketa ponizej.',
+            'Możesz też włączyć/wyłączyć pytanie o powód otwarcia ticketa poniżej.',
         embeds: [],
         components: [new ActionRowBuilder().addComponents(roleSelect), toggleRow, nextRow],
         ephemeral: true,
@@ -674,13 +674,13 @@ async function handleReasonToggle(interaction) {
 function buildAccessStepPayload(session) {
     const roleSelect = new RoleSelectMenuBuilder()
         .setCustomId('panel_access_roles')
-        .setPlaceholder('Role z dostepem do ticketow tego przycisku (opcjonalnie)')
+        .setPlaceholder('Role z dostępem do ticketów tego przycisku (opcjonalnie)')
         .setMinValues(0)
         .setMaxValues(25);
 
     const userSelect = new UserSelectMenuBuilder()
         .setCustomId('panel_access_users')
-        .setPlaceholder('Konkretne osoby z dostepem do ticketow tego przycisku (opcjonalnie)')
+        .setPlaceholder('Konkretne osoby z dostępem do ticketów tego przycisku (opcjonalnie)')
         .setMinValues(0)
         .setMaxValues(25);
 
@@ -690,7 +690,7 @@ function buildAccessStepPayload(session) {
     );
 
     return {
-        content: `Konfiguracja przycisku **${session.draft.label}** - krok 2/3: wybierz role i/lub osoby, ktore beda widziec i miec dostep do ticketow otwartych tym przyciskiem (poza osoba, ktora otworzy ticket).`,
+        content: `Konfiguracja przycisku **${session.draft.label}** - krok 2/3: wybierz role i/lub osoby, które będą widzieć i mieć dostęp do ticketów otwartych tym przyciskiem (poza osobą, która otworzy ticket).`,
         components: [new ActionRowBuilder().addComponents(roleSelect), new ActionRowBuilder().addComponents(userSelect), nextRow],
     };
 }
@@ -698,7 +698,7 @@ function buildAccessStepPayload(session) {
 function buildCategoryStepPayload(session) {
     const channelSelect = new ChannelSelectMenuBuilder()
         .setCustomId('panel_category_select')
-        .setPlaceholder('Wybierz kategorie dla kanalow ticketow tego przycisku')
+        .setPlaceholder('Wybierz kategorię dla kanałów ticketów tego przycisku')
         .addChannelTypes(ChannelType.GuildCategory)
         .setMinValues(1)
         .setMaxValues(1);
@@ -708,7 +708,7 @@ function buildCategoryStepPayload(session) {
     );
 
     return {
-        content: `Konfiguracja przycisku **${session.draft.label}** - krok 3/3: wybierz kategorie, w ktorej beda tworzone kanaly ticketow.`,
+        content: `Konfiguracja przycisku **${session.draft.label}** - krok 3/3: wybierz kategorię, w której będą tworzone kanały ticketów.`,
         components: [new ActionRowBuilder().addComponents(channelSelect), cancelRow],
     };
 }
@@ -773,7 +773,7 @@ async function handleCategorySelect(interaction) {
     session.draft = null;
 
     await interaction.update({
-        content: `Przycisk dodany! Wroc do panelu glownego powyzej, aby dodac kolejny przycisk lub wyslac panel.`,
+        content: `Przycisk dodany! Wróć do panelu głównego powyżej, aby dodać kolejny przycisk lub wysłać panel.`,
         components: [],
     });
 
@@ -789,13 +789,13 @@ async function handleDraftCancel(interaction) {
 
 async function handleMenuCancel(interaction) {
     deleteWizardSession(interaction.user.id);
-    await interaction.update({ content: 'Konfiguracja panelu ticketow zostala anulowana.', embeds: [], components: [] });
+    await interaction.update({ content: 'Konfiguracja panelu ticketów została anulowana.', embeds: [], components: [] });
 }
 
 async function handleMenuFinish(interaction) {
     const session = getWizardSession(interaction.user.id);
     if (!session || session.buttons.length === 0) {
-        await interaction.reply({ content: 'Dodaj przynajmniej jeden przycisk przed wyslaniem panelu.', ephemeral: true });
+        await interaction.reply({ content: 'Dodaj przynajmniej jeden przycisk przed wysłaniem panelu.', ephemeral: true });
         return;
     }
 
@@ -850,29 +850,29 @@ async function handleMenuFinish(interaction) {
 
     await setPanelMessageId(panelId, panelMessage.id);
 
-    await interaction.editReply({ content: 'Panel ticketow zostal wyslany na kanal! ✅', embeds: [], components: [] });
+    await interaction.editReply({ content: 'Panel ticketów został wysłany na kanał! ✅', embeds: [], components: [] });
     deleteWizardSession(interaction.user.id);
 }
 
 // ---------------------------------------------------------------------------
-// Logika ticketow (tworzenie, zamykanie, auto-zamkniecie po 12h)
+// Logika ticketów (tworzenie, zamykanie, auto-zamknięcie po 12h)
 // ---------------------------------------------------------------------------
 
 function buildCloseControlEmbed() {
     return new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle('Zarzadzanie ticketem')
+        .setTitle('Zarządzanie ticketem')
         .setDescription(
-            'Kliknij ponizszy przycisk, aby zamknac ten ticket.\n' +
-            'Jesli zrobi to autor ticketa - kanal zamknie sie od razu.\n' +
-            'Jesli zrobi to administrator - autor ticketa zostanie poproszony o potwierdzenie.'
+            'Kliknij poniższy przycisk, aby zamknąć ten ticket.\n' +
+            'Jeśli zrobi to autor ticketa - kanał zamknie się od razu.\n' +
+            'Jeśli zrobi to administrator - autor ticketa zostanie poproszony o potwierdzenie.'
         );
 }
 
 async function handleOpenTicketButton(interaction, buttonId) {
     const panelButton = await getPanelButton(buttonId);
     if (!panelButton) {
-        await interaction.reply({ content: 'Ten przycisk nie jest juz aktywny.', ephemeral: true });
+        await interaction.reply({ content: 'Ten przycisk nie jest już aktywny.', ephemeral: true });
         return;
     }
 
@@ -888,7 +888,7 @@ async function handleOpenTicketButton(interaction, buttonId) {
 
     const reasonInput = new TextInputBuilder()
         .setCustomId('ticket_reason')
-        .setLabel('Podaj powod otwarcia ticketa')
+        .setLabel('Podaj powód otwarcia ticketa')
         .setStyle(TextInputStyle.Paragraph)
         .setMaxLength(1000)
         .setRequired(true);
@@ -901,7 +901,7 @@ async function handleOpenTicketButton(interaction, buttonId) {
 async function handleTicketReasonModalSubmit(interaction, buttonId) {
     const panelButton = await getPanelButton(buttonId);
     if (!panelButton) {
-        await interaction.reply({ content: 'Ten przycisk nie jest juz aktywny.', ephemeral: true });
+        await interaction.reply({ content: 'Ten przycisk nie jest już aktywny.', ephemeral: true });
         return;
     }
 
@@ -916,7 +916,7 @@ async function createTicketChannel(interaction, panelButton, reason) {
     const category = await guild.channels.fetch(panelButton.categoryId).catch(() => null);
 
     if (!category || category.type !== ChannelType.GuildCategory) {
-        await interaction.editReply({ content: 'Kategoria ustawiona dla tego przycisku juz nie istnieje. Skontaktuj sie z administracja.' });
+        await interaction.editReply({ content: 'Kategoria ustawiona dla tego przycisku już nie istnieje. Skontaktuj się z administracją.' });
         return;
     }
 
@@ -978,17 +978,17 @@ async function createTicketChannel(interaction, panelButton, reason) {
     const infoEmbed = new EmbedBuilder()
         .setColor(0x57f287)
         .setTitle(`Nowy ticket: ${panelButton.label}`)
-        .setDescription(panelButton.content ? panelButton.content : 'Dziekujemy za utworzenie ticketa. Ktos z zespolu wkrotce sie odezwie.')
+        .setDescription(panelButton.content ? panelButton.content : 'Dziękujemy za utworzenie ticketa. Ktoś z zespołu wkrótce się odezwie.')
         .setFooter({ text: `Ticket utworzony przez ${interaction.user.tag}` })
         .setTimestamp();
 
     if (reason) {
-        infoEmbed.addFields({ name: 'Powod otwarcia', value: reason.slice(0, 1024) });
+        infoEmbed.addFields({ name: 'Powód otwarcia', value: reason.slice(0, 1024) });
     }
 
     await channel.send({ content: mentions, embeds: [infoEmbed] });
 
-    await interaction.editReply({ content: `Twoj ticket zostal utworzony: ${channel}` });
+    await interaction.editReply({ content: `Twój ticket został utworzony: ${channel}` });
 }
 
 function hasTicketAccess(interaction, panelButton) {
@@ -1004,28 +1004,28 @@ async function handleCloseButton(interaction, ticketId) {
         return;
     }
     if (ticket.status !== 'open') {
-        await interaction.reply({ content: 'Ten ticket jest juz zamkniety.', ephemeral: true });
+        await interaction.reply({ content: 'Ten ticket jest już zamknięty.', ephemeral: true });
         return;
     }
 
     if (interaction.user.id === ticket.openerId) {
         await interaction.reply({ content: 'Zamykasz ticket...' });
-        await closeTicketAndArchive(interaction.client, ticket, `Ticket zamkniety przez autora ${interaction.user.tag}.`);
+        await closeTicketAndArchive(interaction.client, ticket, `Ticket zamknięty przez autora ${interaction.user.tag}.`);
         return;
     }
 
     const panelButton = await getPanelButton(ticket.panelButtonId);
     if (!panelButton || !hasTicketAccess(interaction, panelButton)) {
-        await interaction.reply({ content: 'Nie masz uprawnien do zamkniecia tego ticketa.', ephemeral: true });
+        await interaction.reply({ content: 'Nie masz uprawnień do zamknięcia tego ticketa.', ephemeral: true });
         return;
     }
 
     const embed = new EmbedBuilder()
         .setColor(0xfee75c)
-        .setTitle('Prosba o zamkniecie ticketa')
+        .setTitle('Prośba o zamknięcie ticketa')
         .setDescription(
-            `<@${ticket.openerId}>, administrator **${interaction.user.tag}** chce zamknac ten ticket. Czy sie zgadzasz?\n` +
-            'Jesli nie odpowiesz w ciagu 12 godzin, ticket zostanie zamkniety automatycznie.'
+            `<@${ticket.openerId}>, administrator **${interaction.user.tag}** chce zamknąć ten ticket. Czy się zgadzasz?\n` +
+            'Jeśli nie odpowiesz w ciągu 12 godzin, ticket zostanie zamknięty automatycznie.'
         );
 
     const row = new ActionRowBuilder().addComponents(
@@ -1040,30 +1040,30 @@ async function handleCloseButton(interaction, ticketId) {
 async function handleCloseConfirmYes(interaction, ticketId) {
     const ticket = await getTicket(ticketId);
     if (!ticket || ticket.status !== 'open') {
-        await interaction.reply({ content: 'Ten ticket jest juz zamkniety.', ephemeral: true });
+        await interaction.reply({ content: 'Ten ticket jest już zamknięty.', ephemeral: true });
         return;
     }
     if (interaction.user.id !== ticket.openerId) {
-        await interaction.reply({ content: 'Tylko osoba, ktora otworzyla ticket moze to potwierdzic.', ephemeral: true });
+        await interaction.reply({ content: 'Tylko osoba, która otworzyła ticket może to potwierdzić.', ephemeral: true });
         return;
     }
 
     await interaction.update({ content: 'Potwierdzono. Zamykanie ticketa...', embeds: [], components: [] });
-    await closeTicketAndArchive(interaction.client, ticket, `Ticket zamkniety za zgoda autora ${interaction.user.tag}.`);
+    await closeTicketAndArchive(interaction.client, ticket, `Ticket zamknięty za zgodą autora ${interaction.user.tag}.`);
 }
 
 async function handleCloseConfirmNo(interaction, ticketId) {
     const ticket = await getTicket(ticketId);
     if (!ticket || ticket.status !== 'open') {
-        await interaction.reply({ content: 'Ten ticket jest juz zamkniety.', ephemeral: true });
+        await interaction.reply({ content: 'Ten ticket jest już zamknięty.', ephemeral: true });
         return;
     }
     if (interaction.user.id !== ticket.openerId) {
-        await interaction.reply({ content: 'Tylko osoba, ktora otworzyla ticket moze to potwierdzic.', ephemeral: true });
+        await interaction.reply({ content: 'Tylko osoba, która otworzyła ticket może to potwierdzić.', ephemeral: true });
         return;
     }
 
-    await interaction.update({ content: 'Prosba o zamkniecie ticketa zostala odrzucona. Korespondencja moze byc kontynuowana.', embeds: [], components: [] });
+    await interaction.update({ content: 'Prośba o zamknięcie ticketa została odrzucona. Korespondencja może być kontynuowana.', embeds: [], components: [] });
     await clearCloseRequest(ticketId);
 }
 
@@ -1075,8 +1075,8 @@ async function closeTicketAndArchive(client, ticket, reasonText) {
 
     const embed = new EmbedBuilder()
         .setColor(0xed4245)
-        .setTitle('Ticket zamkniety')
-        .setDescription(`${reasonText}\nKanal zostanie usuniety za 10 sekund.`);
+        .setTitle('Ticket zamknięty')
+        .setDescription(`${reasonText}\nKanał zostanie usunięty za 10 sekund.`);
 
     await channel.send({ embeds: [embed] }).catch(() => {});
     setTimeout(() => {
@@ -1091,7 +1091,7 @@ async function autoCloseExpiredRequests(client) {
     for (const ticketId of ticketIds) {
         const ticket = await getTicket(ticketId);
         if (!ticket || ticket.status !== 'open') continue;
-        await closeTicketAndArchive(client, ticket, 'Ticket zamkniety automatycznie po 12 godzinach braku odpowiedzi na prosbe o zamkniecie.');
+        await closeTicketAndArchive(client, ticket, 'Ticket zamknięty automatycznie po 12 godzinach braku odpowiedzi na prośbę o zamknięcie.');
     }
 }
 
@@ -1102,12 +1102,12 @@ async function autoCloseExpiredRequests(client) {
 const slashCommands = [
     new SlashCommandBuilder()
         .setName('panel-tickets')
-        .setDescription('Skonfiguruj i wyslij panel do tworzenia ticketow na tym kanale')
+        .setDescription('Skonfiguruj i wyślij panel do tworzenia ticketów na tym kanale')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .toJSON(),
     new SlashCommandBuilder()
         .setName('help')
-        .setDescription('Wyjasnia jak dziala system ticketow na tym serwerze')
+        .setDescription('Wyjaśnia jak działa system ticketów na tym serwerze')
         .toJSON(),
 ];
 
@@ -1130,13 +1130,13 @@ const client = new Client({
 client.once('ready', async () => {
     await initDb();
     await deploySlashCommands().catch((error) => {
-        console.error('Nie udalo sie zarejestrowac komend:', error);
+        console.error('Nie udało się zarejestrować komend:', error);
     });
     console.log(`Zalogowano jako ${client.user.tag}`);
 
     setInterval(() => {
         autoCloseExpiredRequests(client).catch((error) => {
-            console.error('Blad podczas automatycznego zamykania ticketow:', error);
+            console.error('Błąd podczas automatycznego zamykania ticketów:', error);
         });
     }, 5 * 60 * 1000);
 });
@@ -1232,8 +1232,8 @@ client.on('interactionCreate', async (interaction) => {
             return;
         }
     } catch (error) {
-        console.error('Blad obslugi interakcji:', error);
-        const payload = { content: 'Wystapil nieoczekiwany blad podczas przetwarzania tej akcji.', flags: MessageFlags.Ephemeral };
+        console.error('Błąd obsługi interakcji:', error);
+        const payload = { content: 'Wystąpił nieoczekiwany błąd podczas przetwarzania tej akcji.', flags: MessageFlags.Ephemeral };
         if (interaction.deferred || interaction.replied) {
             await interaction.editReply(payload).catch(() => {});
         } else {
