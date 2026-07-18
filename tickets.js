@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-const https = require('https');
 const { createClient } = require('@libsql/client');
 const {
     Client,
@@ -261,61 +260,6 @@ function sanitizeChannelName(name) {
         .slice(0, 80) || 'ticket';
 }
 
-function downloadBuffer(url, redirectsLeft = 5) {
-    return new Promise((resolve, reject) => {
-        const req = https.get(
-            url,
-            { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; discord-tickets-bot)' } },
-            (res) => {
-                if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                    res.resume();
-                    if (redirectsLeft <= 0) {
-                        reject(new Error('Zbyt wiele przekierowań podczas pobierania pliku'));
-                        return;
-                    }
-                    downloadBuffer(res.headers.location, redirectsLeft - 1).then(resolve, reject);
-                    return;
-                }
-
-                if (res.statusCode !== 200) {
-                    res.resume();
-                    reject(new Error(`Nieoczekiwany status HTTP ${res.statusCode} podczas pobierania pliku`));
-                    return;
-                }
-
-                const chunks = [];
-                res.on('data', (chunk) => chunks.push(chunk));
-                res.on('end', () => resolve(Buffer.concat(chunks)));
-                res.on('error', reject);
-            }
-        );
-
-        req.setTimeout(15_000, () => {
-            req.destroy(new Error('Przekroczono limit czasu pobierania pliku'));
-        });
-        req.on('error', reject);
-    });
-}
-
-function delay(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function downloadWithRetries(urls, attemptsPerUrl = 4, delayMs = 700) {
-    let lastError;
-    for (const url of urls.filter(Boolean)) {
-        for (let attempt = 1; attempt <= attemptsPerUrl; attempt++) {
-            try {
-                return await downloadBuffer(url);
-            } catch (error) {
-                lastError = error;
-                if (attempt < attemptsPerUrl) await delay(delayMs);
-            }
-        }
-    }
-    throw lastError;
-}
-
 // ---------------------------------------------------------------------------
 // Komenda /help
 // ---------------------------------------------------------------------------
@@ -389,8 +333,7 @@ function createWizardSession(userId, data) {
             description: null,
             footer: null,
             imageUrl: null,
-            imageBuffer: null,
-            imageFileName: null,
+            sourceMessage: null,
             color: DEFAULT_EMBED_COLOR,
             showBotIconInFooter: true,
         },
@@ -594,7 +537,8 @@ function buildImageStepPayload() {
     return {
         content:
             'Krok 3/4: wyślij teraz na tym kanale obrazek, gif, mp4 (jako załącznik) lub naklejkę, ' +
-            `która ma pojawić się w embedzie panelu. Masz na to ${IMAGE_WAIT_MS / 60000} minut. Możesz też pominąć ten krok.`,
+            `która ma pojawić się w embedzie panelu. Masz na to ${IMAGE_WAIT_MS / 60000} minut. Możesz też pominąć ten krok.\n` +
+            '-# Przesłany plik pozostanie chwilowo widoczny na kanale (aby link do niego nie stracił ważności) i zniknie automatycznie po wysłaniu lub anulowaniu panelu.',
         embeds: [],
         components: [row],
     };
@@ -615,27 +559,10 @@ async function handleColorNext(interaction) {
     await goToImageStep(interaction, session);
 }
 
-function sanitizeFileName(name) {
-    const lastDot = name.lastIndexOf('.');
-    const rawExt = lastDot > 0 ? name.slice(lastDot + 1) : '';
-    const ext = rawExt.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4) || 'png';
-    const base =
-        (lastDot > 0 ? name.slice(0, lastDot) : name)
-            .normalize('NFKD')
-            .replace(/[̀-ͯ]/g, '')
-            .replace(/[^a-zA-Z0-9_-]+/g, '_')
-            .slice(0, 60) || 'plik';
-    return `${base}.${ext}`;
-}
-
 function extractEmbedMedia(message) {
     const attachment = message.attachments.first();
     if (attachment) {
-        return {
-            url: attachment.url,
-            proxyUrl: attachment.proxyURL || null,
-            name: sanitizeFileName(attachment.name || 'zalacznik.png'),
-        };
+        return { url: attachment.url, keepMessageAlive: true };
     }
 
     const sticker = message.stickers.first();
@@ -643,12 +570,7 @@ function extractEmbedMedia(message) {
         if (sticker.format === StickerFormatType.Lottie) {
             return { unsupported: true };
         }
-        const extension = sticker.url.split('.').pop().split('?')[0] || 'png';
-        return {
-            url: sticker.url,
-            proxyUrl: null,
-            name: sanitizeFileName(`${sticker.name || 'naklejka'}.${extension}`),
-        };
+        return { url: sticker.url, keepMessageAlive: false };
     }
 
     return null;
@@ -688,22 +610,17 @@ function startImageCollector(interaction, session) {
 
         if (!media) return;
 
+        await clearPendingSourceMessage(session);
+
         session.embed.imageUrl = media.url;
 
-        try {
-            session.embed.imageBuffer = await downloadWithRetries([media.url, media.proxyUrl]);
-            session.embed.imageFileName = media.name;
-        } catch (error) {
-            console.error('Nie udało się pobrać załącznika embeda:', error);
-            await interaction.followUp({
-                content:
-                    'Nie udało się pobrać przesłanego pliku na serwerze bota, więc w panelu może zostać użyty tymczasowy link, ' +
-                    'który po pewnym czasie przestanie działać. Spróbuj wysłać plik ponownie albo dokończ konfigurację i wyślij panel możliwie szybko.',
-                ephemeral: true,
-            }).catch(() => {});
+        if (media.keepMessageAlive) {
+            // Wiadomość z załącznikiem zostaje na kanale do czasu wysłania/anulowania
+            // panelu, żeby link do pliku pozostał ważny przez cały czas konfiguracji.
+            session.embed.sourceMessage = message;
+        } else {
+            await message.delete().catch(() => {});
         }
-
-        await message.delete().catch(() => {});
 
         session.imageCollectorActive = false;
         collector.stop();
@@ -726,6 +643,8 @@ async function handleImageSkip(interaction) {
         return;
     }
     stopImageCollector(session);
+    await clearPendingSourceMessage(session);
+    session.embed.imageUrl = null;
     await showMainMenu(interaction, session, true);
 }
 
@@ -767,16 +686,16 @@ function buildFinalPanelPayload(session) {
 
     const footerData = buildFooterData(session);
     if (footerData) embed.setFooter(footerData);
+    if (session.embed.imageUrl) embed.setImage(session.embed.imageUrl);
 
-    const files = [];
-    if (session.embed.imageBuffer) {
-        embed.setImage(`attachment://${session.embed.imageFileName}`);
-        files.push({ attachment: session.embed.imageBuffer, name: session.embed.imageFileName });
-    } else if (session.embed.imageUrl) {
-        embed.setImage(session.embed.imageUrl);
+    return { embed };
+}
+
+async function clearPendingSourceMessage(session) {
+    if (session.embed.sourceMessage) {
+        await session.embed.sourceMessage.delete().catch(() => {});
+        session.embed.sourceMessage = null;
     }
-
-    return { embed, files };
 }
 
 function renderEmojiLabel(emoji) {
@@ -1128,6 +1047,8 @@ async function handleDraftCancel(interaction) {
 }
 
 async function handleMenuCancel(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (session) await clearPendingSourceMessage(session);
     deleteWizardSession(interaction.user.id);
     await interaction.update({ content: 'Konfiguracja panelu ticketów została anulowana.', embeds: [], components: [] });
 }
@@ -1186,11 +1107,12 @@ async function handleMenuFinish(interaction) {
     }
     if (currentRow.components.length > 0) buttonRows.push(currentRow);
 
-    const { embed, files } = buildFinalPanelPayload(session);
+    const { embed } = buildFinalPanelPayload(session);
     const channel = await interaction.client.channels.fetch(session.channelId);
-    const panelMessage = await channel.send({ embeds: [embed], components: buttonRows.slice(0, 5), files });
+    const panelMessage = await channel.send({ embeds: [embed], components: buttonRows.slice(0, 5) });
 
     await setPanelMessageId(panelId, panelMessage.id);
+    await clearPendingSourceMessage(session);
 
     await interaction.editReply({ content: 'Panel ticketów został wysłany na kanał! ✅', embeds: [], components: [] });
     deleteWizardSession(interaction.user.id);
