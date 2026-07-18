@@ -297,6 +297,25 @@ function downloadBuffer(url, redirectsLeft = 5) {
     });
 }
 
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function downloadWithRetries(urls, attemptsPerUrl = 4, delayMs = 700) {
+    let lastError;
+    for (const url of urls.filter(Boolean)) {
+        for (let attempt = 1; attempt <= attemptsPerUrl; attempt++) {
+            try {
+                return await downloadBuffer(url);
+            } catch (error) {
+                lastError = error;
+                if (attempt < attemptsPerUrl) await delay(delayMs);
+            }
+        }
+    }
+    throw lastError;
+}
+
 // ---------------------------------------------------------------------------
 // Komenda /help
 // ---------------------------------------------------------------------------
@@ -612,7 +631,11 @@ function sanitizeFileName(name) {
 function extractEmbedMedia(message) {
     const attachment = message.attachments.first();
     if (attachment) {
-        return { url: attachment.url, name: sanitizeFileName(attachment.name || 'zalacznik.png') };
+        return {
+            url: attachment.url,
+            proxyUrl: attachment.proxyURL || null,
+            name: sanitizeFileName(attachment.name || 'zalacznik.png'),
+        };
     }
 
     const sticker = message.stickers.first();
@@ -621,7 +644,11 @@ function extractEmbedMedia(message) {
             return { unsupported: true };
         }
         const extension = sticker.url.split('.').pop().split('?')[0] || 'png';
-        return { url: sticker.url, name: sanitizeFileName(`${sticker.name || 'naklejka'}.${extension}`) };
+        return {
+            url: sticker.url,
+            proxyUrl: null,
+            name: sanitizeFileName(`${sticker.name || 'naklejka'}.${extension}`),
+        };
     }
 
     return null;
@@ -664,7 +691,7 @@ function startImageCollector(interaction, session) {
         session.embed.imageUrl = media.url;
 
         try {
-            session.embed.imageBuffer = await downloadBuffer(media.url);
+            session.embed.imageBuffer = await downloadWithRetries([media.url, media.proxyUrl]);
             session.embed.imageFileName = media.name;
         } catch (error) {
             console.error('Nie udało się pobrać załącznika embeda:', error);
