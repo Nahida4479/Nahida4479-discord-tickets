@@ -20,6 +20,7 @@ const {
     RoleSelectMenuBuilder,
     UserSelectMenuBuilder,
     ChannelSelectMenuBuilder,
+    StringSelectMenuBuilder,
     ChannelType,
     StickerFormatType,
 } = require('discord.js');
@@ -33,6 +34,20 @@ if (!token) {
 
 const MAX_BUTTONS = 25;
 const IMAGE_WAIT_MS = 5 * 60 * 1000;
+const DEFAULT_EMBED_COLOR = 0x5865f2;
+
+const COLOR_OPTIONS = [
+    { label: 'Discord Blurple', hex: '5865F2', emoji: '🟦' },
+    { label: 'Czerwony', hex: 'ED4245', emoji: '🔴' },
+    { label: 'Zielony', hex: '57F287', emoji: '🟢' },
+    { label: 'Żółty', hex: 'FEE75C', emoji: '🟡' },
+    { label: 'Pomarańczowy', hex: 'E67E22', emoji: '🟠' },
+    { label: 'Fioletowy', hex: '9B59B6', emoji: '🟣' },
+    { label: 'Różowy', hex: 'EB459E', emoji: '💗' },
+    { label: 'Turkusowy', hex: '1ABC9C', emoji: '🔷' },
+    { label: 'Niebieski', hex: '3498DB', emoji: '🔵' },
+    { label: 'Biały', hex: 'FFFFFF', emoji: '⚪' },
+];
 
 // ---------------------------------------------------------------------------
 // Baza danych (Turso / libSQL)
@@ -54,9 +69,14 @@ async function initDb() {
             embed_description TEXT,
             embed_footer TEXT,
             embed_image_url TEXT,
+            embed_color INTEGER NOT NULL DEFAULT 5793266,
+            footer_icon_enabled INTEGER NOT NULL DEFAULT 1,
             created_at INTEGER NOT NULL
         )
     `);
+
+    await dbClient.execute(`ALTER TABLE panels ADD COLUMN embed_color INTEGER NOT NULL DEFAULT 5793266`).catch(() => {});
+    await dbClient.execute(`ALTER TABLE panels ADD COLUMN footer_icon_enabled INTEGER NOT NULL DEFAULT 1`).catch(() => {});
 
     await dbClient.execute(`
         CREATE TABLE IF NOT EXISTS panel_buttons (
@@ -97,11 +117,11 @@ async function initDb() {
     `);
 }
 
-async function createPanel({ guildId, channelId, title, description, footer, imageUrl }) {
+async function createPanel({ guildId, channelId, title, description, footer, imageUrl, color, footerIconEnabled }) {
     const result = await dbClient.execute({
-        sql: `INSERT INTO panels (guild_id, channel_id, embed_title, embed_description, embed_footer, embed_image_url, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [guildId, channelId, title, description, footer, imageUrl, Date.now()],
+        sql: `INSERT INTO panels (guild_id, channel_id, embed_title, embed_description, embed_footer, embed_image_url, embed_color, footer_icon_enabled, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [guildId, channelId, title, description, footer, imageUrl, color, footerIconEnabled ? 1 : 0, Date.now()],
     });
     return Number(result.lastInsertRowid);
 }
@@ -256,7 +276,8 @@ async function executeHelp(interaction) {
                 name: '1. Konfiguracja panelu (administracja)',
                 value:
                     'Osoba z uprawnieniami administratora lub właściciel serwera może użyć komendy `/panel-tickets`. ' +
-                    'Uruchamia to kreator, w którym można ustawić: tytuł embeda, treść embeda, stopkę, ' +
+                    'Uruchamia to kreator, w którym można ustawić: tytuł embeda, treść embeda, stopkę, kolor embeda ' +
+                    '(z listy 10 gotowych kolorów lub wpisany własny kod HEX), ikonę bota wyświetlaną przy stopce, ' +
                     'obrazek, gif, mp4 lub naklejkę (wysłaną jako załącznik lub naklejkę na czacie) oraz dowolną liczbę przycisków (do 25). ' +
                     'Dla każdego przycisku można określić: etykietę, emoji, treść wiadomości wysyłanej po utworzeniu ticketa, ' +
                     'role oznaczane (ping) przy tworzeniu ticketa, role/osoby mające dostęp do ticketów z tego przycisku, ' +
@@ -307,7 +328,16 @@ function createWizardSession(userId, data) {
     wizardSessions.set(userId, {
         guildId: data.guildId,
         channelId: data.channelId,
-        embed: { title: null, description: null, footer: null, imageUrl: null, imageBuffer: null, imageFileName: null },
+        embed: {
+            title: null,
+            description: null,
+            footer: null,
+            imageUrl: null,
+            imageBuffer: null,
+            imageFileName: null,
+            color: DEFAULT_EMBED_COLOR,
+            showBotIconInFooter: true,
+        },
         buttons: [],
         draft: null,
         imageCollectorActive: false,
@@ -329,12 +359,13 @@ async function startPanelWizard(interaction) {
         return;
     }
 
-    createWizardSession(interaction.user.id, {
+    const session = createWizardSession(interaction.user.id, {
         guildId: interaction.guildId,
         channelId: interaction.channelId,
     });
+    session.botIconUrl = interaction.client.user.displayAvatarURL();
 
-    const modal = new ModalBuilder().setCustomId('panel_embed_modal').setTitle('Konfiguracja panelu ticketów (1/3)');
+    const modal = new ModalBuilder().setCustomId('panel_embed_modal').setTitle('Konfiguracja panelu ticketów (1/4)');
 
     const titleInput = new TextInputBuilder()
         .setCustomId('embed_title')
@@ -378,16 +409,122 @@ async function handleEmbedModalSubmit(interaction) {
     const footer = interaction.fields.getTextInputValue('embed_footer');
     session.embed.footer = footer && footer.length > 0 ? footer : null;
 
+    await interaction.reply(buildColorStepPayload(session));
+}
+
+function findColorLabel(colorInt) {
+    const hex = colorInt.toString(16).padStart(6, '0').toUpperCase();
+    const found = COLOR_OPTIONS.find((c) => c.hex === hex);
+    return found ? `${found.emoji} ${found.label}` : `🎨 Własny (#${hex})`;
+}
+
+function buildColorStepPayload(session) {
+    const colorSelect = new StringSelectMenuBuilder()
+        .setCustomId('panel_color_select')
+        .setPlaceholder('Wybierz kolor embeda')
+        .addOptions([
+            ...COLOR_OPTIONS.map((c) => ({ label: c.label, value: c.hex, emoji: c.emoji })),
+            { label: 'Własny kolor (HEX)', value: 'custom', emoji: '🎨' },
+        ]);
+
+    const iconToggleRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('panel_footer_icon_toggle')
+            .setLabel(
+                session.embed.showBotIconInFooter
+                    ? 'Ikona bota przy stopce: WŁĄCZONA ✅'
+                    : 'Ikona bota przy stopce: WYŁĄCZONA ❌'
+            )
+            .setStyle(session.embed.showBotIconInFooter ? ButtonStyle.Success : ButtonStyle.Secondary)
+            .setDisabled(!session.embed.footer)
+    );
+
+    const nextRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('panel_color_next').setLabel('Dalej ➡️').setStyle(ButtonStyle.Primary)
+    );
+
+    return {
+        content:
+            `Krok 2/4: obecny kolor embeda: ${findColorLabel(session.embed.color)}.\n` +
+            'Wybierz kolor z listy poniżej lub "Własny kolor (HEX)", aby wpisać własny kod.\n' +
+            (session.embed.footer
+                ? 'Możesz też włączyć/wyłączyć ikonę bota wyświetlaną przy stopce.'
+                : 'Ikona bota przy stopce będzie dostępna dopiero, jeśli ustawisz treść stopki (krok 1/4).'),
+        embeds: [],
+        components: [new ActionRowBuilder().addComponents(colorSelect), iconToggleRow, nextRow],
+        ephemeral: true,
+    };
+}
+
+async function handleColorSelect(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session) {
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
+        return;
+    }
+
+    const value = interaction.values[0];
+    if (value === 'custom') {
+        const modal = new ModalBuilder().setCustomId('panel_color_hex_modal').setTitle('Własny kolor embeda');
+        const hexInput = new TextInputBuilder()
+            .setCustomId('color_hex')
+            .setLabel('Kod HEX koloru (np. FF00AA)')
+            .setStyle(TextInputStyle.Short)
+            .setMaxLength(7)
+            .setRequired(true);
+        modal.addComponents(new ActionRowBuilder().addComponents(hexInput));
+        await interaction.showModal(modal);
+        return;
+    }
+
+    session.embed.color = parseInt(value, 16);
+    await interaction.update(buildColorStepPayload(session));
+}
+
+async function handleColorHexModalSubmit(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session) {
+        await interaction.reply({ content: 'Sesja konfiguracji wygasła. Użyj ponownie /panel-tickets.', ephemeral: true });
+        return;
+    }
+
+    const raw = interaction.fields.getTextInputValue('color_hex').trim().replace(/^#/, '');
+    if (!/^[0-9a-fA-F]{6}$/.test(raw)) {
+        await interaction.reply({ content: 'Nieprawidłowy kod HEX. Podaj dokładnie 6 znaków, np. FF00AA.', ephemeral: true });
+        return;
+    }
+
+    session.embed.color = parseInt(raw, 16);
+    await interaction.reply(buildColorStepPayload(session));
+}
+
+async function handleFooterIconToggle(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session) {
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
+        return;
+    }
+    session.embed.showBotIconInFooter = !session.embed.showBotIconInFooter;
+    await interaction.update(buildColorStepPayload(session));
+}
+
+async function handleColorNext(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session) {
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
+        return;
+    }
+
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('panel_image_skip').setLabel('Pomiń obrazek/gif').setStyle(ButtonStyle.Secondary)
     );
 
-    await interaction.reply({
+    await interaction.update({
         content:
-            'Krok 2/3: wyślij teraz na tym kanale obrazek, gif, mp4 (jako załącznik) lub naklejkę, ' +
+            'Krok 3/4: wyślij teraz na tym kanale obrazek, gif, mp4 (jako załącznik) lub naklejkę, ' +
             `która ma pojawić się w embedzie panelu. Masz na to ${IMAGE_WAIT_MS / 60000} minut. Możesz też pominąć ten krok.`,
+        embeds: [],
         components: [row],
-        ephemeral: true,
     });
 
     session.menuInteraction = interaction;
@@ -470,13 +607,21 @@ async function handleImageSkip(interaction) {
     await showMainMenu(interaction, session, true);
 }
 
+function buildFooterData(session) {
+    if (!session.embed.footer) return null;
+    const footerData = { text: session.embed.footer };
+    if (session.embed.showBotIconInFooter && session.botIconUrl) footerData.iconURL = session.botIconUrl;
+    return footerData;
+}
+
 function buildPreviewEmbed(session) {
     const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
+        .setColor(session.embed.color)
         .setTitle(session.embed.title)
         .setDescription(session.embed.description);
 
-    if (session.embed.footer) embed.setFooter({ text: session.embed.footer });
+    const footerData = buildFooterData(session);
+    if (footerData) embed.setFooter(footerData);
     if (session.embed.imageUrl) embed.setImage(session.embed.imageUrl);
 
     return embed;
@@ -484,11 +629,12 @@ function buildPreviewEmbed(session) {
 
 function buildFinalPanelPayload(session) {
     const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
+        .setColor(session.embed.color)
         .setTitle(session.embed.title)
         .setDescription(session.embed.description);
 
-    if (session.embed.footer) embed.setFooter({ text: session.embed.footer });
+    const footerData = buildFooterData(session);
+    if (footerData) embed.setFooter(footerData);
 
     const files = [];
     if (session.embed.imageBuffer) {
@@ -508,12 +654,12 @@ function renderEmojiLabel(emoji) {
 
 function buildMenuContent(session) {
     if (session.buttons.length === 0) {
-        return 'Krok 3/3: dodaj przynajmniej jeden przycisk ticketu, aby móc wysłać panel.';
+        return 'Krok 4/4: dodaj przynajmniej jeden przycisk ticketu, aby móc wysłać panel.';
     }
     const list = session.buttons
         .map((b, i) => `**${i + 1}.** ${b.emoji ? renderEmojiLabel(b.emoji) + ' ' : ''}${b.label}`)
         .join('\n');
-    return `Krok 3/3: skonfigurowane przyciski (${session.buttons.length}/${MAX_BUTTONS}):\n${list}`;
+    return `Krok 4/4: skonfigurowane przyciski (${session.buttons.length}/${MAX_BUTTONS}):\n${list}`;
 }
 
 function buildMenuComponents(session) {
@@ -808,6 +954,8 @@ async function handleMenuFinish(interaction) {
         description: session.embed.description,
         footer: session.embed.footer,
         imageUrl: session.embed.imageUrl,
+        color: session.embed.color,
+        footerIconEnabled: session.embed.showBotIconInFooter,
     });
 
     const buttonRows = [];
@@ -1157,6 +1305,8 @@ client.on('interactionCreate', async (interaction) => {
                 await handleEmbedModalSubmit(interaction);
             } else if (interaction.customId === 'panel_button_modal') {
                 await handleButtonModalSubmit(interaction);
+            } else if (interaction.customId === 'panel_color_hex_modal') {
+                await handleColorHexModalSubmit(interaction);
             } else if (interaction.customId.startsWith('ticket_reason_modal:')) {
                 const buttonId = Number(interaction.customId.split(':')[1]);
                 await handleTicketReasonModalSubmit(interaction, buttonId);
@@ -1169,6 +1319,12 @@ client.on('interactionCreate', async (interaction) => {
             switch (prefix) {
                 case 'panel_image_skip':
                     await handleImageSkip(interaction);
+                    break;
+                case 'panel_footer_icon_toggle':
+                    await handleFooterIconToggle(interaction);
+                    break;
+                case 'panel_color_next':
+                    await handleColorNext(interaction);
                     break;
                 case 'panel_menu_add':
                     await handleMenuAdd(interaction);
@@ -1205,6 +1361,13 @@ client.on('interactionCreate', async (interaction) => {
                     break;
                 default:
                     break;
+            }
+            return;
+        }
+
+        if (interaction.isStringSelectMenu()) {
+            if (interaction.customId === 'panel_color_select') {
+                await handleColorSelect(interaction);
             }
             return;
         }
