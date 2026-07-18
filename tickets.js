@@ -21,6 +21,7 @@ const {
     UserSelectMenuBuilder,
     ChannelSelectMenuBuilder,
     ChannelType,
+    StickerFormatType,
 } = require('discord.js');
 
 const token = process.env.bot;
@@ -256,7 +257,7 @@ async function executeHelp(interaction) {
                 value:
                     'Osoba z uprawnieniami administratora lub wlasciciel serwera moze uzyc komendy `/panel-tickets`. ' +
                     'Uruchamia to kreator, w ktorym mozna ustawic: tytul embeda, tresc embeda, stopke, ' +
-                    'obrazek/gif (jako zalacznik) oraz dowolna liczbe przyciskow (do 25). ' +
+                    'obrazek, gif, mp4 lub naklejke (wyslana jako zalacznik lub naklejka na czacie) oraz dowolna liczbe przyciskow (do 25). ' +
                     'Dla kazdego przycisku mozna okreslic: etykiete, emoji, tresc wiadomosci wysylanej po utworzeniu ticketa, ' +
                     'role oznaczane (ping) przy tworzeniu ticketa, role/osoby majace dostep do ticketow z tego przycisku, ' +
                     'kategorie, w ktorej beda tworzone kanaly ticketow oraz czy przy otwieraniu ticketa ma pojawic sie ' +
@@ -383,8 +384,8 @@ async function handleEmbedModalSubmit(interaction) {
 
     await interaction.reply({
         content:
-            'Krok 2/3: wyslij teraz na tym kanale obrazek lub gif jako zalacznik, ktory ma pojawic sie w embedzie panelu. ' +
-            `Masz na to ${IMAGE_WAIT_MS / 60000} minut. Mozesz tez pominac ten krok.`,
+            'Krok 2/3: wyslij teraz na tym kanale obrazek, gif, mp4 (jako zalacznik) lub naklejke, ' +
+            `ktora ma pojawic sie w embedzie panelu. Masz na to ${IMAGE_WAIT_MS / 60000} minut. Mozesz tez pominac ten krok.`,
         components: [row],
         ephemeral: true,
     });
@@ -393,38 +394,67 @@ async function handleEmbedModalSubmit(interaction) {
     startImageCollector(interaction, session);
 }
 
+function extractEmbedMedia(message) {
+    const attachment = message.attachments.first();
+    if (attachment) {
+        return { url: attachment.url, name: attachment.name || 'zalacznik.png' };
+    }
+
+    const sticker = message.stickers.first();
+    if (sticker) {
+        if (sticker.format === StickerFormatType.Lottie) {
+            return { unsupported: true };
+        }
+        const extension = sticker.url.split('.').pop().split('?')[0] || 'png';
+        return { url: sticker.url, name: `${sanitizeChannelName(sticker.name || 'naklejka')}.${extension}` };
+    }
+
+    return null;
+}
+
 function startImageCollector(interaction, session) {
     if (session.imageCollectorActive) return;
     session.imageCollectorActive = true;
 
     const channel = interaction.channel;
     const collector = channel.createMessageCollector({
-        filter: (msg) => msg.author.id === interaction.user.id && msg.attachments.size > 0,
-        max: 1,
+        filter: (msg) => msg.author.id === interaction.user.id && (msg.attachments.size > 0 || msg.stickers.size > 0),
         time: IMAGE_WAIT_MS,
     });
 
     collector.on('collect', async (message) => {
-        const attachment = message.attachments.first();
-        session.embed.imageUrl = attachment.url;
+        const media = extractEmbedMedia(message);
+        await message.delete().catch(() => {});
+
+        if (media?.unsupported) {
+            await interaction.followUp({
+                content: 'Ta naklejka jest w formacie wektorowym (Lottie) i nie moze byc uzyta jako obrazek embeda. Wyslij plik, gif, mp4 lub inna naklejke (obrazkowa/animowana).',
+                ephemeral: true,
+            }).catch(() => {});
+            return;
+        }
+
+        if (!media) return;
+
+        session.embed.imageUrl = media.url;
 
         try {
-            const response = await fetch(attachment.url);
+            const response = await fetch(media.url);
             const buffer = Buffer.from(await response.arrayBuffer());
             session.embed.imageBuffer = buffer;
-            session.embed.imageFileName = attachment.name || 'obrazek.png';
+            session.embed.imageFileName = media.name;
         } catch (error) {
             console.error('Nie udalo sie pobrac zalacznika embeda:', error);
         }
 
         session.imageCollectorActive = false;
-        await message.delete().catch(() => {});
+        collector.stop();
         await showMainMenu(interaction, session);
     });
 
-    collector.on('end', async (collected) => {
+    collector.on('end', async () => {
         session.imageCollectorActive = false;
-        if (collected.size === 0 && session.embed.imageUrl === null && !session.menuShown) {
+        if (session.embed.imageUrl === null && !session.menuShown) {
             await showMainMenu(interaction, session);
         }
     });
