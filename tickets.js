@@ -263,8 +263,10 @@ function sanitizeChannelName(name) {
 
 function downloadBuffer(url, redirectsLeft = 5) {
     return new Promise((resolve, reject) => {
-        https
-            .get(url, (res) => {
+        const req = https.get(
+            url,
+            { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; discord-tickets-bot)' } },
+            (res) => {
                 if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
                     res.resume();
                     if (redirectsLeft <= 0) {
@@ -285,8 +287,13 @@ function downloadBuffer(url, redirectsLeft = 5) {
                 res.on('data', (chunk) => chunks.push(chunk));
                 res.on('end', () => resolve(Buffer.concat(chunks)));
                 res.on('error', reject);
-            })
-            .on('error', reject);
+            }
+        );
+
+        req.setTimeout(15_000, () => {
+            req.destroy(new Error('Przekroczono limit czasu pobierania pliku'));
+        });
+        req.on('error', reject);
     });
 }
 
@@ -589,10 +596,23 @@ async function handleColorNext(interaction) {
     await goToImageStep(interaction, session);
 }
 
+function sanitizeFileName(name) {
+    const lastDot = name.lastIndexOf('.');
+    const rawExt = lastDot > 0 ? name.slice(lastDot + 1) : '';
+    const ext = rawExt.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4) || 'png';
+    const base =
+        (lastDot > 0 ? name.slice(0, lastDot) : name)
+            .normalize('NFKD')
+            .replace(/[̀-ͯ]/g, '')
+            .replace(/[^a-zA-Z0-9_-]+/g, '_')
+            .slice(0, 60) || 'plik';
+    return `${base}.${ext}`;
+}
+
 function extractEmbedMedia(message) {
     const attachment = message.attachments.first();
     if (attachment) {
-        return { url: attachment.url, name: attachment.name || 'zalacznik.png' };
+        return { url: attachment.url, name: sanitizeFileName(attachment.name || 'zalacznik.png') };
     }
 
     const sticker = message.stickers.first();
@@ -601,7 +621,7 @@ function extractEmbedMedia(message) {
             return { unsupported: true };
         }
         const extension = sticker.url.split('.').pop().split('?')[0] || 'png';
-        return { url: sticker.url, name: `${sanitizeChannelName(sticker.name || 'naklejka')}.${extension}` };
+        return { url: sticker.url, name: sanitizeFileName(`${sticker.name || 'naklejka'}.${extension}`) };
     }
 
     return null;
@@ -629,9 +649,9 @@ function startImageCollector(interaction, session) {
 
     collector.on('collect', async (message) => {
         const media = extractEmbedMedia(message);
-        await message.delete().catch(() => {});
 
         if (media?.unsupported) {
+            await message.delete().catch(() => {});
             await interaction.followUp({
                 content: 'Ta naklejka jest w formacie wektorowym (Lottie) i nie może być użyta jako obrazek embeda. Wyślij plik, gif, mp4 lub inną naklejkę (obrazkową/animowaną).',
                 ephemeral: true,
@@ -655,6 +675,8 @@ function startImageCollector(interaction, session) {
                 ephemeral: true,
             }).catch(() => {});
         }
+
+        await message.delete().catch(() => {});
 
         session.imageCollectorActive = false;
         collector.stop();
