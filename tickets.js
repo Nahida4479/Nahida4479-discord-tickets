@@ -353,6 +353,42 @@ function deleteWizardSession(userId) {
     wizardSessions.delete(userId);
 }
 
+function buildEmbedModal(prefill = {}) {
+    const modal = new ModalBuilder().setCustomId('panel_embed_modal').setTitle('Konfiguracja panelu ticketów (1/4)');
+
+    const titleInput = new TextInputBuilder()
+        .setCustomId('embed_title')
+        .setLabel('Tytuł embeda')
+        .setStyle(TextInputStyle.Short)
+        .setMaxLength(256)
+        .setRequired(true);
+    if (prefill.title) titleInput.setValue(prefill.title);
+
+    const descriptionInput = new TextInputBuilder()
+        .setCustomId('embed_description')
+        .setLabel('Treść embeda')
+        .setStyle(TextInputStyle.Paragraph)
+        .setMaxLength(2000)
+        .setRequired(true);
+    if (prefill.description) descriptionInput.setValue(prefill.description);
+
+    const footerInput = new TextInputBuilder()
+        .setCustomId('embed_footer')
+        .setLabel('Stopka embeda (opcjonalnie)')
+        .setStyle(TextInputStyle.Short)
+        .setMaxLength(256)
+        .setRequired(false);
+    if (prefill.footer) footerInput.setValue(prefill.footer);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(titleInput),
+        new ActionRowBuilder().addComponents(descriptionInput),
+        new ActionRowBuilder().addComponents(footerInput)
+    );
+
+    return modal;
+}
+
 async function startPanelWizard(interaction) {
     if (!isOwnerOrAdmin(interaction)) {
         await interaction.reply({ content: 'Ta komenda jest dostępna tylko dla właściciela serwera lub administratorów.', ephemeral: true });
@@ -365,36 +401,7 @@ async function startPanelWizard(interaction) {
     });
     session.botIconUrl = interaction.client.user.displayAvatarURL();
 
-    const modal = new ModalBuilder().setCustomId('panel_embed_modal').setTitle('Konfiguracja panelu ticketów (1/4)');
-
-    const titleInput = new TextInputBuilder()
-        .setCustomId('embed_title')
-        .setLabel('Tytuł embeda')
-        .setStyle(TextInputStyle.Short)
-        .setMaxLength(256)
-        .setRequired(true);
-
-    const descriptionInput = new TextInputBuilder()
-        .setCustomId('embed_description')
-        .setLabel('Treść embeda')
-        .setStyle(TextInputStyle.Paragraph)
-        .setMaxLength(2000)
-        .setRequired(true);
-
-    const footerInput = new TextInputBuilder()
-        .setCustomId('embed_footer')
-        .setLabel('Stopka embeda (opcjonalnie)')
-        .setStyle(TextInputStyle.Short)
-        .setMaxLength(256)
-        .setRequired(false);
-
-    modal.addComponents(
-        new ActionRowBuilder().addComponents(titleInput),
-        new ActionRowBuilder().addComponents(descriptionInput),
-        new ActionRowBuilder().addComponents(footerInput)
-    );
-
-    await interaction.showModal(modal);
+    await interaction.showModal(buildEmbedModal());
 }
 
 async function handleEmbedModalSubmit(interaction) {
@@ -440,6 +447,7 @@ function buildColorStepPayload(session) {
     );
 
     const nextRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('panel_color_back').setLabel('⬅️ Wstecz').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('panel_color_next').setLabel('Dalej ➡️').setStyle(ButtonStyle.Primary)
     );
 
@@ -498,6 +506,19 @@ async function handleColorHexModalSubmit(interaction) {
     await interaction.reply(buildColorStepPayload(session));
 }
 
+async function handleColorBack(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session) {
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
+        return;
+    }
+    await interaction.showModal(buildEmbedModal({
+        title: session.embed.title,
+        description: session.embed.description,
+        footer: session.embed.footer,
+    }));
+}
+
 async function handleFooterIconToggle(interaction) {
     const session = getWizardSession(interaction.user.id);
     if (!session) {
@@ -508,27 +529,34 @@ async function handleFooterIconToggle(interaction) {
     await interaction.update(buildColorStepPayload(session));
 }
 
+function buildImageStepPayload() {
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('panel_image_back').setLabel('⬅️ Wstecz').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('panel_image_skip').setLabel('Pomiń obrazek/gif').setStyle(ButtonStyle.Secondary)
+    );
+
+    return {
+        content:
+            'Krok 3/4: wyślij teraz na tym kanale obrazek, gif, mp4 (jako załącznik) lub naklejkę, ' +
+            `która ma pojawić się w embedzie panelu. Masz na to ${IMAGE_WAIT_MS / 60000} minut. Możesz też pominąć ten krok.`,
+        embeds: [],
+        components: [row],
+    };
+}
+
+async function goToImageStep(interaction, session) {
+    await interaction.update(buildImageStepPayload());
+    session.menuInteraction = interaction;
+    startImageCollector(interaction, session);
+}
+
 async function handleColorNext(interaction) {
     const session = getWizardSession(interaction.user.id);
     if (!session) {
         await interaction.update({ content: 'Sesja wygasła.', components: [] });
         return;
     }
-
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('panel_image_skip').setLabel('Pomiń obrazek/gif').setStyle(ButtonStyle.Secondary)
-    );
-
-    await interaction.update({
-        content:
-            'Krok 3/4: wyślij teraz na tym kanale obrazek, gif, mp4 (jako załącznik) lub naklejkę, ' +
-            `która ma pojawić się w embedzie panelu. Masz na to ${IMAGE_WAIT_MS / 60000} minut. Możesz też pominąć ten krok.`,
-        embeds: [],
-        components: [row],
-    });
-
-    session.menuInteraction = interaction;
-    startImageCollector(interaction, session);
+    await goToImageStep(interaction, session);
 }
 
 function extractEmbedMedia(message) {
@@ -549,6 +577,15 @@ function extractEmbedMedia(message) {
     return null;
 }
 
+function stopImageCollector(session) {
+    if (session.imageCollector) {
+        session.imageCollector.removeAllListeners('end');
+        session.imageCollector.stop();
+        session.imageCollector = null;
+    }
+    session.imageCollectorActive = false;
+}
+
 function startImageCollector(interaction, session) {
     if (session.imageCollectorActive) return;
     session.imageCollectorActive = true;
@@ -558,6 +595,7 @@ function startImageCollector(interaction, session) {
         filter: (msg) => msg.author.id === interaction.user.id && (msg.attachments.size > 0 || msg.stickers.size > 0),
         time: IMAGE_WAIT_MS,
     });
+    session.imageCollector = collector;
 
     collector.on('collect', async (message) => {
         const media = extractEmbedMedia(message);
@@ -591,6 +629,7 @@ function startImageCollector(interaction, session) {
 
     collector.on('end', async () => {
         session.imageCollectorActive = false;
+        session.imageCollector = null;
         if (session.embed.imageUrl === null && !session.menuShown) {
             await showMainMenu(interaction, session);
         }
@@ -603,8 +642,18 @@ async function handleImageSkip(interaction) {
         await interaction.update({ content: 'Sesja konfiguracji wygasła. Użyj ponownie /panel-tickets.', components: [] });
         return;
     }
-    session.imageCollectorActive = false;
+    stopImageCollector(session);
     await showMainMenu(interaction, session, true);
+}
+
+async function handleImageBack(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session) {
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
+        return;
+    }
+    stopImageCollector(session);
+    await interaction.update(buildColorStepPayload(session));
 }
 
 function buildFooterData(session) {
@@ -664,6 +713,7 @@ function buildMenuContent(session) {
 
 function buildMenuComponents(session) {
     const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('panel_menu_back').setLabel('⬅️ Wstecz').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('panel_menu_add')
             .setLabel('Dodaj przycisk')
@@ -701,6 +751,15 @@ async function showMainMenu(interaction, session, isComponentInteraction = false
     }
 }
 
+async function handleMenuBack(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session) {
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
+        return;
+    }
+    await goToImageStep(interaction, session);
+}
+
 async function refreshMainMenu(session) {
     if (!session.menuInteraction) return;
     await session.menuInteraction.editReply({
@@ -710,14 +769,8 @@ async function refreshMainMenu(session) {
     }).catch(() => {});
 }
 
-async function handleMenuAdd(interaction) {
-    const session = getWizardSession(interaction.user.id);
-    if (!session) {
-        await interaction.reply({ content: 'Sesja konfiguracji wygasła. Użyj ponownie /panel-tickets.', ephemeral: true });
-        return;
-    }
-
-    const modal = new ModalBuilder().setCustomId('panel_button_modal').setTitle('Nowy przycisk ticketu');
+function buildButtonModal(prefill = {}) {
+    const modal = new ModalBuilder().setCustomId('panel_button_modal').setTitle('Przycisk ticketu');
 
     const labelInput = new TextInputBuilder()
         .setCustomId('button_label')
@@ -725,6 +778,7 @@ async function handleMenuAdd(interaction) {
         .setStyle(TextInputStyle.Short)
         .setMaxLength(80)
         .setRequired(true);
+    if (prefill.label) labelInput.setValue(prefill.label);
 
     const emojiInput = new TextInputBuilder()
         .setCustomId('button_emoji')
@@ -732,6 +786,7 @@ async function handleMenuAdd(interaction) {
         .setStyle(TextInputStyle.Short)
         .setMaxLength(100)
         .setRequired(false);
+    if (prefill.emojiRaw) emojiInput.setValue(prefill.emojiRaw);
 
     const contentInput = new TextInputBuilder()
         .setCustomId('button_content')
@@ -739,6 +794,7 @@ async function handleMenuAdd(interaction) {
         .setStyle(TextInputStyle.Paragraph)
         .setMaxLength(1500)
         .setRequired(false);
+    if (prefill.content) contentInput.setValue(prefill.content);
 
     modal.addComponents(
         new ActionRowBuilder().addComponents(labelInput),
@@ -746,7 +802,17 @@ async function handleMenuAdd(interaction) {
         new ActionRowBuilder().addComponents(contentInput)
     );
 
-    await interaction.showModal(modal);
+    return modal;
+}
+
+async function handleMenuAdd(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session) {
+        await interaction.reply({ content: 'Sesja konfiguracji wygasła. Użyj ponownie /panel-tickets.', ephemeral: true });
+        return;
+    }
+
+    await interaction.showModal(buildButtonModal());
 }
 
 async function handleButtonModalSubmit(interaction) {
@@ -759,17 +825,24 @@ async function handleButtonModalSubmit(interaction) {
     const label = interaction.fields.getTextInputValue('button_label');
     const emojiRaw = interaction.fields.getTextInputValue('button_emoji');
     const content = interaction.fields.getTextInputValue('button_content');
+    const parsedContent = content && content.length > 0 ? content : null;
 
-    session.draft = {
-        label,
-        emoji: parseEmojiInput(emojiRaw),
-        content: content && content.length > 0 ? content : null,
-        pingRoles: [],
-        accessRoles: [],
-        accessUsers: [],
-        categoryId: null,
-        askReason: true,
-    };
+    if (session.draft) {
+        session.draft.label = label;
+        session.draft.emoji = parseEmojiInput(emojiRaw);
+        session.draft.content = parsedContent;
+    } else {
+        session.draft = {
+            label,
+            emoji: parseEmojiInput(emojiRaw),
+            content: parsedContent,
+            pingRoles: [],
+            accessRoles: [],
+            accessUsers: [],
+            categoryId: null,
+            askReason: true,
+        };
+    }
 
     await interaction.reply(buildPingStepPayload(session));
 }
@@ -780,6 +853,7 @@ function buildPingStepPayload(session) {
         .setPlaceholder('Wybierz role do oznaczenia po utworzeniu ticketa (opcjonalnie)')
         .setMinValues(0)
         .setMaxValues(25);
+    if (session.draft.pingRoles.length > 0) roleSelect.setDefaultRoles(session.draft.pingRoles);
 
     const toggleRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -793,6 +867,7 @@ function buildPingStepPayload(session) {
     );
 
     const nextRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('panel_ping_back').setLabel('⬅️ Wstecz').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('panel_ping_next').setLabel('Dalej ➡️').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('panel_draft_cancel').setLabel('Anuluj przycisk').setStyle(ButtonStyle.Danger)
     );
@@ -807,10 +882,23 @@ function buildPingStepPayload(session) {
     };
 }
 
+async function handlePingBack(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session || !session.draft) {
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
+        return;
+    }
+    await interaction.showModal(buildButtonModal({
+        label: session.draft.label,
+        emojiRaw: renderEmojiLabel(session.draft.emoji) || null,
+        content: session.draft.content,
+    }));
+}
+
 async function handleReasonToggle(interaction) {
     const session = getWizardSession(interaction.user.id);
     if (!session || !session.draft) {
-        await interaction.update({ content: 'Sesja wygasla.', components: [] });
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
         return;
     }
     session.draft.askReason = !session.draft.askReason;
@@ -823,14 +911,17 @@ function buildAccessStepPayload(session) {
         .setPlaceholder('Role z dostępem do ticketów tego przycisku (opcjonalnie)')
         .setMinValues(0)
         .setMaxValues(25);
+    if (session.draft.accessRoles.length > 0) roleSelect.setDefaultRoles(session.draft.accessRoles);
 
     const userSelect = new UserSelectMenuBuilder()
         .setCustomId('panel_access_users')
         .setPlaceholder('Konkretne osoby z dostępem do ticketów tego przycisku (opcjonalnie)')
         .setMinValues(0)
         .setMaxValues(25);
+    if (session.draft.accessUsers.length > 0) userSelect.setDefaultUsers(session.draft.accessUsers);
 
     const nextRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('panel_access_back').setLabel('⬅️ Wstecz').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('panel_access_next').setLabel('Dalej ➡️').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('panel_draft_cancel').setLabel('Anuluj przycisk').setStyle(ButtonStyle.Danger)
     );
@@ -848,8 +939,10 @@ function buildCategoryStepPayload(session) {
         .addChannelTypes(ChannelType.GuildCategory)
         .setMinValues(1)
         .setMaxValues(1);
+    if (session.draft.categoryId) channelSelect.setDefaultChannels(session.draft.categoryId);
 
     const cancelRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('panel_category_back').setLabel('⬅️ Wstecz').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('panel_draft_cancel').setLabel('Anuluj przycisk').setStyle(ButtonStyle.Danger)
     );
 
@@ -872,10 +965,19 @@ async function handlePingRolesSelect(interaction) {
 async function handlePingNext(interaction) {
     const session = getWizardSession(interaction.user.id);
     if (!session || !session.draft) {
-        await interaction.update({ content: 'Sesja wygasla.', components: [] });
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
         return;
     }
     await interaction.update(buildAccessStepPayload(session));
+}
+
+async function handleAccessBack(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session || !session.draft) {
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
+        return;
+    }
+    await interaction.update(buildPingStepPayload(session));
 }
 
 async function handleAccessRolesSelect(interaction) {
@@ -901,16 +1003,25 @@ async function handleAccessUsersSelect(interaction) {
 async function handleAccessNext(interaction) {
     const session = getWizardSession(interaction.user.id);
     if (!session || !session.draft) {
-        await interaction.update({ content: 'Sesja wygasla.', components: [] });
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
         return;
     }
     await interaction.update(buildCategoryStepPayload(session));
 }
 
+async function handleCategoryBack(interaction) {
+    const session = getWizardSession(interaction.user.id);
+    if (!session || !session.draft) {
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
+        return;
+    }
+    await interaction.update(buildAccessStepPayload(session));
+}
+
 async function handleCategorySelect(interaction) {
     const session = getWizardSession(interaction.user.id);
     if (!session || !session.draft) {
-        await interaction.update({ content: 'Sesja wygasla.', components: [] });
+        await interaction.update({ content: 'Sesja wygasła.', components: [] });
         return;
     }
 
@@ -1320,11 +1431,20 @@ client.on('interactionCreate', async (interaction) => {
                 case 'panel_image_skip':
                     await handleImageSkip(interaction);
                     break;
+                case 'panel_image_back':
+                    await handleImageBack(interaction);
+                    break;
                 case 'panel_footer_icon_toggle':
                     await handleFooterIconToggle(interaction);
                     break;
+                case 'panel_color_back':
+                    await handleColorBack(interaction);
+                    break;
                 case 'panel_color_next':
                     await handleColorNext(interaction);
+                    break;
+                case 'panel_menu_back':
+                    await handleMenuBack(interaction);
                     break;
                 case 'panel_menu_add':
                     await handleMenuAdd(interaction);
@@ -1338,11 +1458,20 @@ client.on('interactionCreate', async (interaction) => {
                 case 'panel_reason_toggle':
                     await handleReasonToggle(interaction);
                     break;
+                case 'panel_ping_back':
+                    await handlePingBack(interaction);
+                    break;
                 case 'panel_ping_next':
                     await handlePingNext(interaction);
                     break;
+                case 'panel_access_back':
+                    await handleAccessBack(interaction);
+                    break;
                 case 'panel_access_next':
                     await handleAccessNext(interaction);
+                    break;
+                case 'panel_category_back':
+                    await handleCategoryBack(interaction);
                     break;
                 case 'panel_draft_cancel':
                     await handleDraftCancel(interaction);
