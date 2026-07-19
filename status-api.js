@@ -1,4 +1,4 @@
-import http from 'http';
+const http = require('http');
 
 http.createServer((req, res) => {
   if (req.url === '/health') {
@@ -9,4 +9,3 @@ http.createServer((req, res) => {
     res.end();
   }
 }).listen(3001, () => console.log('Health-check server działa na porcie 3001'));
-
