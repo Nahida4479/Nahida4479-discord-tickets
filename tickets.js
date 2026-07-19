@@ -1,4 +1,4 @@
-import "./status-api.js";
+require('./status-api.js');
 require('dotenv').config();
 
 const { createClient } = require('@libsql/client');
