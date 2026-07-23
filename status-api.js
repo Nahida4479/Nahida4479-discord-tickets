@@ -2,8 +2,13 @@ const http = require('http');
 
 http.createServer((req, res) => {
   if (req.url === '/health') {
-    res.writeHead(200);
-    res.end('OK');
+    if (client.isReady()) {
+      res.writeHead(200);
+      res.end('OK');
+    } else {
+      res.writeHead(503);
+      res.end('Discord disconnected');
+    }
   } else {
     res.writeHead(404);
     res.end();
